@@ -1,0 +1,330 @@
+<!-- 前端 index.html -->
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>AI问答挑战</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 100%; /* 改为百分比布局 */
+        margin: 0 auto;
+        padding: 12px; /* 减小默认间距 */
+      }
+
+      .question-box {
+        width: 80vw;
+        margin: 0 auto;
+        background: #f5f5f5;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 15px;
+        position: relative;
+      }
+
+      #score {
+        position: static; /* 改为静态定位 */
+        text-align: right;
+        font-size: 20px;
+        margin-bottom: 15px;
+      }
+
+      form {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      #answerInput {
+        flex: 1;
+        min-width: 200px;
+        padding: 12px;
+        font-size: 16px;
+      }
+
+      button {
+        padding: 12px 18px;
+        font-size: 15px;
+        white-space: nowrap;
+      }
+
+      #voiceBtn {
+        margin-left: 0; /* 移除左侧间距 */
+      }
+
+      /* 移动端优化 */
+
+      @media screen and (max-width: 768px) {
+        body {
+          padding: 8px;
+        }
+
+        .question-box {
+          padding: 12px;
+          width: 90vw;
+          height: 70vh;
+          margin: auto 0;
+        }
+
+        h2 {
+          font-size: 20px; /* 减小标题字号 */
+          line-height: 1.3;
+        }
+
+        form {
+          height: 30%;
+        }
+        #answerInput {
+          width: 100%;
+          height: 60%;
+          margin-bottom: 8px;
+          line-height: 1;
+        }
+
+        button {
+          width: 100%;
+          padding: 10px;
+          font-size: 14px;
+        }
+
+        #score {
+          font-size: 18px;
+        }
+      }
+
+      /* 平板设备优化 */
+      @media screen and (min-width: 769px) and (max-width: 1024px) {
+        body {
+          padding: 15px;
+        }
+
+        button {
+          padding: 12px 15px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="question-box">
+      <h2 id="question">正在加载题目...</h2>
+      <div id="score">得分: 0</div>
+      <form>
+        <input
+          type="text"
+          id="answerInput"
+          placeholder="点击右侧按钮语音回答"
+        />
+        <button
+          id="voiceBtn"
+          type="button"
+        >
+          🎤
+        </button>
+        <button
+          onclick="submitAnswer()"
+          id="submitBtn"
+          type="submit"
+        >
+          提交答案
+        </button>
+        <button
+          onclick="fetchNewQuestion()"
+          id="nextQuestion"
+          type="button"
+        >
+          下一题
+        </button>
+      </form>
+    </div>
+    <div id="explanation"></div>
+
+    <script>
+      let recognition;
+      let currentQuestion = '';
+      let score = 0;
+      let chatHistory = [];
+
+      const nextQuestionBtn = document.getElementById('nextQuestion');
+      nextQuestionBtn.addEventListener('click', () => {
+        fetchNewQuestion();
+        nextQuestionBtn.setAttribute('disabled', true);
+      });
+      nextQuestionBtn.setAttribute('disabled', true);
+      const explanationEl = document.getElementById('explanation');
+
+      const answerInput = document.getElementById('answerInput');
+      const submitBtn = document.getElementById('submitBtn');
+      const voiceBtn = document.getElementById('voiceBtn');
+
+      // 初始化语音识别
+      window.onload = function () {
+        if ('webkitSpeechRecognition' in window) {
+          try {
+            recognition = new webkitSpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'zh-CN';
+
+            recognition.onresult = function (event) {
+              const transcript = event.results[0][0].transcript;
+              console.log('Transcript:', transcript);
+              answerInput.value = transcript;
+            };
+
+            voiceBtn.onclick = function () {
+              recognition.start();
+            };
+          } catch (e) {
+            voiceBtn.setAttribute('disabled', true);
+          }
+        } else {
+          alert('您的浏览器不支持语音识别');
+        }
+        fetchNewQuestion();
+      };
+
+      function disableActions() {
+        answerInput.setAttribute('disabled', true);
+        submitBtn.setAttribute('disabled', true);
+        voiceBtn.setAttribute('disabled', true);
+        nextQuestionBtn.setAttribute('disabled', true);
+      }
+      function enableActions() {
+        nextQuestionBtn.removeAttribute('disabled');
+        voiceBtn.removeAttribute('disabled');
+        answerInput.removeAttribute('disabled');
+        submitBtn.removeAttribute('disabled');
+      }
+
+      // 修改fetchNewQuestion函数为流式接收
+      async function fetchNewQuestion() {
+        disableActions();
+        document.getElementById('question').textContent = '正在获取题目...';
+        explanationEl.innerHTML = '';
+        try {
+          const response = await fetch(`http://localhost:3000/new-question`);
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+
+          document.getElementById('question').textContent = '';
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const textChunk = decoder.decode(value);
+            document.getElementById('question').textContent += textChunk;
+            currentQuestion += textChunk; // 持续构建完整问题
+          }
+          enableActions();
+        } catch (error) {
+          document.getElementById('question').textContent = '获取题目失败';
+          console.error('获取题目失败:', error);
+        }
+      }
+
+      // 修改submitAnswer函数为流式接收
+      async function submitAnswer() {
+        const userAnswer = answerInput.value;
+        if (!userAnswer) return;
+
+        disableActions();
+        // 等待的emojo图标
+
+        explanationEl.innerHTML = `
+                <h3>🤔正在验证……</h3>
+                <p></p>
+              `;
+
+        try {
+          const response = await fetch('http://localhost:3000/check-answer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              question: currentQuestion,
+              answer: userAnswer,
+            }),
+          });
+
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let fullResponse = '';
+          let isJsonPart = false;
+          let jsonBuffer = '';
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) {
+              try {
+                console.log('fullResponse:', fullResponse);
+                const startIndex = fullResponse.indexOf('{');
+                const endIndex = fullResponse.indexOf('}');
+                const json = JSON.parse(
+                  fullResponse.substring(startIndex, endIndex + 1)
+                );
+                console.log('json:', json);
+
+                score += json.score;
+                document.getElementById('score').textContent = `得分: ${score}`;
+                const h3 = explanationEl.querySelector('h3');
+                if (json.correct < 50) {
+                  h3.textContent = '❌ 错误';
+                } else if (json.correct < 70) {
+                  h3.textContent = '🤔 基本正确';
+                } else if (json.correct < 90) {
+                  h3.textContent = '🤗 很棒！';
+                } else if (json.correct < 100) {
+                  h3.textContent = '🎉 太棒了！';
+                }
+              } catch (e) {
+                explanationEl.innerHTML = `
+                🙁出错了……${e.message}`;
+              }
+              break;
+            }
+
+            const textChunk = decoder.decode(value);
+            // const isJsonStart = textChunk.includes('{');
+
+            // 实时显示流式内容
+            fullResponse += textChunk;
+            if (fullResponse.includes('{')) isJsonPart = true;
+            if (!isJsonPart) {
+              explanationEl.innerHTML = `
+                <h3>🤔正在验证……</h3>
+                <p>${fullResponse}</p>
+              `;
+            }
+
+            // if (!isJsonPart) {
+            // }
+            //  else {
+            //   jsonBuffer += textChunk;
+            //   if (textChunk.includes('}')) {
+            //     try {
+            //       const result = JSON.parse(jsonBuffer.match(/{[\s\S]*?}/)[0]);
+            //       explanationEl.innerHTML = `
+            //     <h3>${result.correct ? '✅ 正确！' : '❌ 错误'}</h3>
+            //     <p>${result.explanation}</p>
+            //   `;
+            //       if (result.correct) {
+            //         score += 10;
+            //         document.getElementById(
+            //           'score'
+            //         ).textContent = `得分: ${score}`;
+            //       }
+            //     } catch (e) {
+            //       console.warn('JSON解析中:', e);
+            //     }
+            //     isJsonPart = false;
+            //     jsonBuffer = '';
+            //   }
+            // }
+          }
+        } catch (error) {
+          console.error('提交失败:', error);
+        } finally {
+          answerInput.value = '';
+          enableActions();
+        }
+      }
+    </script>
+  </body>
+</html>

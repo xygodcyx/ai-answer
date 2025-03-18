@@ -1,0 +1,183 @@
+<!-- 前端 index.html -->
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>AI问答挑战</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .question-box {
+        background: #f5f5f5;
+        padding: 20px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+        position: relative;
+      }
+      #voiceBtn {
+        margin-left: 10px;
+        cursor: pointer;
+      }
+      #score {
+        position: absolute;
+        top: 20px;
+        right: -6rem;
+        font-size: 24px;
+        font-weight: bold;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="question-box">
+      <h2 id="question">正在加载题目...</h2>
+      <div id="score">得分: 0</div>
+      <form>
+        <input
+          type="text"
+          id="answerInput"
+          placeholder="点击右侧按钮语音回答"
+        />
+        <button
+          id="voiceBtn"
+          type="button"
+        >
+          🎤
+        </button>
+        <button
+          onclick="submitAnswer()"
+          id="submitBtn"
+          type="submit"
+        >
+          提交答案
+        </button>
+        <button
+          onclick="fetchNewQuestion()"
+          id="nextQuestion"
+          type="button"
+        >
+          下一题
+        </button>
+      </form>
+    </div>
+    <div id="explanation"></div>
+
+    <script>
+      let recognition;
+      let currentQuestion = '';
+      let score = 0;
+      let chatHistory = [];
+
+      const nextQuestionBtn = document.getElementById('nextQuestion');
+      nextQuestionBtn.addEventListener('click', () => {
+        fetchNewQuestion();
+        nextQuestionBtn.setAttribute('disabled', true);
+      });
+      nextQuestionBtn.setAttribute('disabled', true);
+
+      const answerInput = document.getElementById('answerInput');
+      const submitBtn = document.getElementById('submitBtn');
+      const voiceBtn = document.getElementById('voiceBtn');
+
+      // 初始化语音识别
+      window.onload = function () {
+        if ('webkitSpeechRecognition' in window) {
+          recognition = new webkitSpeechRecognition();
+          recognition.continuous = false;
+          recognition.interimResults = false;
+          recognition.lang = 'zh-CN';
+
+          recognition.onresult = function (event) {
+            const transcript = event.results[0][0].transcript;
+            console.log('Transcript:', transcript);
+            answerInput.value = transcript;
+          };
+
+          voiceBtn.onclick = function () {
+            recognition.start();
+          };
+        } else {
+          alert('您的浏览器不支持语音识别');
+        }
+        fetchNewQuestion();
+      };
+
+      function disableActions() {
+        answerInput.setAttribute('disabled', true);
+        submitBtn.setAttribute('disabled', true);
+        voiceBtn.setAttribute('disabled', true);
+        nextQuestionBtn.setAttribute('disabled', true);
+      }
+      function enableActions() {
+        nextQuestionBtn.removeAttribute('disabled');
+        voiceBtn.removeAttribute('disabled');
+        answerInput.removeAttribute('disabled');
+        submitBtn.removeAttribute('disabled');
+      }
+
+      async function fetchNewQuestion() {
+        disableActions();
+        document.getElementById('question').textContent = '正在加载题目...';
+        document.getElementById('explanation').innerHTML = '';
+        try {
+          const response = await fetch(
+            `http://localhost:3000/new-question`
+          ).finally(() => {
+            enableActions();
+          });
+          const data = await response.json();
+          currentQuestion = data.question;
+          document.getElementById('question').textContent = data.question;
+          chatHistory = data.history;
+        } catch (error) {
+          document.getElementById('question').textContent = '获取题目失败';
+          document.getElementById('explanation').innerHTML = `
+          <h3>出错了……${error.message}</h3>`;
+          console.error('获取题目失败:', error);
+        }
+      }
+
+      async function submitAnswer() {
+        const userAnswer = answerInput.value;
+        disableActions();
+        if (!userAnswer) return;
+
+        try {
+          const response = await fetch('http://localhost:3000/check-answer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              question: currentQuestion,
+              answer: userAnswer,
+              history: chatHistory,
+            }),
+          })
+            .finally(() => {
+              answerInput.value = '';
+              enableActions();
+            })
+            .catch((error) => {
+              document.getElementById('question').textContent = '获取题目失败';
+              document.getElementById('explanation').innerHTML = `
+                    <h3>出错了……${error.message}</h3>`;
+            });
+
+          const result = await response.json();
+          document.getElementById('explanation').innerHTML = `
+                    <h3>${result.correct ? '✅ 正确！' : '❌ 错误'}</h3>
+                    <p>${result.explanation}</p>
+                `;
+
+          if (result.correct) {
+            score += 10;
+            document.getElementById('score').textContent = `得分: ${score}`;
+          }
+        } catch (error) {
+          console.error('提交失败:', error);
+        }
+      }
+    </script>
+  </body>
+</html>
