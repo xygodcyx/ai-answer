@@ -16,9 +16,14 @@
         margin: 0 auto;
         background: #f5f5f5;
         padding: 15px;
+        height: 60vh;
         border-radius: 8px;
         margin-bottom: 15px;
         position: relative;
+      }
+      #explanation {
+        width: 80vw;
+        margin: 0 auto;
       }
 
       #score {
@@ -29,14 +34,15 @@
       }
 
       form {
-        display: flex;
-        flex-wrap: wrap;
         gap: 10px;
+        height: 60%;
+        display: flex;
+        flex-direction: column;
       }
 
       #answerInput {
-        flex: 1;
         min-width: 200px;
+        height: 80%;
         padding: 12px;
         font-size: 16px;
       }
@@ -61,7 +67,7 @@
         .question-box {
           padding: 12px;
           width: 90vw;
-          height: 70vh;
+          height: 60vh;
           margin: auto 0;
         }
 
@@ -112,6 +118,7 @@
           type="text"
           id="answerInput"
           placeholder="点击右侧按钮语音回答"
+          required
         />
         <button
           id="voiceBtn"
@@ -120,14 +127,12 @@
           🎤
         </button>
         <button
-          onclick="submitAnswer()"
           id="submitBtn"
           type="submit"
         >
           提交答案
         </button>
         <button
-          onclick="fetchNewQuestion()"
           id="nextQuestion"
           type="button"
         >
@@ -141,7 +146,6 @@
       let recognition;
       let currentQuestion = '';
       let score = 0;
-      let chatHistory = [];
 
       const nextQuestionBtn = document.getElementById('nextQuestion');
       nextQuestionBtn.addEventListener('click', () => {
@@ -149,6 +153,11 @@
         nextQuestionBtn.setAttribute('disabled', true);
       });
       nextQuestionBtn.setAttribute('disabled', true);
+
+      document.querySelector('form').addEventListener('submit', (event) => {
+        event.preventDefault();
+        submitAnswer();
+      });
       const explanationEl = document.getElementById('explanation');
 
       const answerInput = document.getElementById('answerInput');
@@ -200,6 +209,7 @@
         disableActions();
         document.getElementById('question').textContent = '正在获取题目...';
         explanationEl.innerHTML = '';
+        currentQuestion = '';
         try {
           const response = await fetch(`http://localhost:3000/new-question`);
           const reader = response.body.getReader();
@@ -270,9 +280,10 @@
                   h3.textContent = '🤔 基本正确';
                 } else if (json.correct < 90) {
                   h3.textContent = '🤗 很棒！';
-                } else if (json.correct < 100) {
+                } else if (json.correct <= 100) {
                   h3.textContent = '🎉 太棒了！';
                 }
+                h3.textContent += ` 得分: ${json.score}`;
               } catch (e) {
                 explanationEl.innerHTML = `
                 🙁出错了……${e.message}`;
