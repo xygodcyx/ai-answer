@@ -25,14 +25,14 @@ app.post('/new-question', async (req, res) => {
       messages: [
         {
           role: 'system',
-          content: `这是旧问题：${oldQuestion}，一定不要重复之前输出过的问题，领域也尽量不要重复，你是一个专业出题老师，
+          content: `这是之前询问过的问题：${oldQuestion}，一定不要重复之前输出过的问题，领域也尽量不要重复，你是一个专业出题老师，
 请生成小学难度的问题，领域：数学、科学、历史、文学、金融、计算机，只选择其中一个，不要太难，也不要太简单，只返回问题本身即可。`,
         },
       ],
       stream: true, // 启用流式输出
       caches: false,
       temperature: 0.2,
-      model: 'deepseek-ai/DeepSeek-V2.5',
+      model: 'deepseek-ai/DeepSeek-V3',
     });
 
     res.setHeader('Content-Type', 'text/plain');
@@ -56,7 +56,7 @@ app.post('/check-answer', async (req, res) => {
       messages: [
         {
           role: 'system',
-          content: `请用以下格式验证答案，使用html标签输出：包含：1.判断正确 2.给出正确答案 3.给出知识点解释（200字内）并在回答的末尾给出得分，分数在0-100之间，正确性在0-100之间,只在末尾输出json，在末尾不要有\`\`json标签\`\`只在末尾输出纯洁的json：{"score":number,"correct":number}，原始问题：${question}`,
+          content: `请用以下格式验证答案，使用html标签输出：包含：1.判断答案是否正确 2.给出正确答案 3.给出知识点解释（200字内）并在回答的末尾给出得分，分数在0-100之间，正确性在0-100之间,只在末尾输出json，在末尾不要有\`\`json标签\`\`只在末尾输出纯洁的json：{"score":number,"correct":number}，原始问题：${question}`,
         },
         {
           role: 'user',
@@ -66,7 +66,7 @@ app.post('/check-answer', async (req, res) => {
       stream: true,
       caches: false,
       temperature: 0.2,
-      model: 'deepseek-ai/DeepSeek-V2.5',
+      model: 'deepseek-ai/DeepSeek-V3',
     });
 
     res.setHeader('Content-Type', 'text/plain');
@@ -110,7 +110,7 @@ async function validateAnswerWithRetry(question, answer) {
     ],
     caches: false,
     temperature: 0.2,
-    model: 'deepseek-ai/DeepSeek-V2.5',
+    model: 'deepseek-ai/DeepSeek-V3',
   });
   res.setHeader('Response-Mode', 'stream');
   return JSON.parse(response.choices[0].message.content.match(/{[\s\S]*?}/)[0]);
