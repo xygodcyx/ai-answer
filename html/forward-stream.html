@@ -53,10 +53,6 @@
         white-space: nowrap;
       }
 
-      #voiceBtn {
-        margin-left: 0; /* 移除左侧间距 */
-      }
-
       /* 移动端优化 */
 
       @media screen and (max-width: 768px) {
@@ -117,15 +113,9 @@
         <input
           type="text"
           id="answerInput"
-          placeholder="点击右侧按钮语音回答"
+          placeholder="请输入答案"
           required
         />
-        <button
-          id="voiceBtn"
-          type="button"
-        >
-          🎤
-        </button>
         <button
           id="submitBtn"
           type="submit"
@@ -145,7 +135,8 @@
     <script>
       let recognition;
       let currentQuestion = '';
-      let score = 0;
+      let score = Number(localStorage.getItem('score')) || 0;
+      const oldQuestion = JSON.parse(localStorage.getItem('oldQuestion')) || [];
 
       const nextQuestionBtn = document.getElementById('nextQuestion');
       nextQuestionBtn.addEventListener('click', () => {
@@ -162,46 +153,25 @@
 
       const answerInput = document.getElementById('answerInput');
       const submitBtn = document.getElementById('submitBtn');
-      const voiceBtn = document.getElementById('voiceBtn');
+      document.getElementById('score').textContent = `得分: ${score}`;
 
       // 初始化语音识别
       window.onload = function () {
-        if ('webkitSpeechRecognition' in window) {
-          try {
-            recognition = new webkitSpeechRecognition();
-            recognition.continuous = false;
-            recognition.interimResults = false;
-            recognition.lang = 'zh-CN';
-
-            recognition.onresult = function (event) {
-              const transcript = event.results[0][0].transcript;
-              console.log('Transcript:', transcript);
-              answerInput.value = transcript;
-            };
-
-            voiceBtn.onclick = function () {
-              recognition.start();
-            };
-          } catch (e) {
-            voiceBtn.setAttribute('disabled', true);
-          }
-        } else {
-          alert('您的浏览器不支持语音识别');
-        }
         fetchNewQuestion();
       };
 
       function disableActions() {
         answerInput.setAttribute('disabled', true);
         submitBtn.setAttribute('disabled', true);
-        voiceBtn.setAttribute('disabled', true);
         nextQuestionBtn.setAttribute('disabled', true);
       }
       function enableActions() {
         nextQuestionBtn.removeAttribute('disabled');
-        voiceBtn.removeAttribute('disabled');
         answerInput.removeAttribute('disabled');
         submitBtn.removeAttribute('disabled');
+      }
+      function enableNextQuestionBtn() {
+        nextQuestionBtn.removeAttribute('disabled');
       }
 
       // 修改fetchNewQuestion函数为流式接收
@@ -210,8 +180,15 @@
         document.getElementById('question').textContent = '正在获取题目...';
         explanationEl.innerHTML = '';
         currentQuestion = '';
+        console.log('oldQuestion:', oldQuestion)
         try {
-          const response = await fetch(`http://localhost:3000/new-question`);
+          const response = await fetch(`http://localhost:3000/new-question`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              oldQuestion: oldQuestion,
+            }),
+          });
           const reader = response.body.getReader();
           const decoder = new TextDecoder();
 
@@ -224,6 +201,8 @@
             document.getElementById('question').textContent += textChunk;
             currentQuestion += textChunk; // 持续构建完整问题
           }
+          oldQuestion.push(currentQuestion);
+          localStorage.setItem('oldQuestion', JSON.stringify(oldQuestion));
           enableActions();
         } catch (error) {
           document.getElementById('question').textContent = '获取题目失败';
@@ -257,6 +236,7 @@
           const reader = response.body.getReader();
           const decoder = new TextDecoder();
           let fullResponse = '';
+          let noJsonContent = '';
           let isJsonPart = false;
           let jsonBuffer = '';
           while (true) {
@@ -272,16 +252,17 @@
                 console.log('json:', json);
 
                 score += json.score;
+                localStorage.setItem('score', score);
                 document.getElementById('score').textContent = `得分: ${score}`;
                 const h3 = explanationEl.querySelector('h3');
                 if (json.correct < 50) {
-                  h3.textContent = '❌ 错误';
+                  h3.textContent = '😢 错误';
                 } else if (json.correct < 70) {
-                  h3.textContent = '🤔 基本正确';
+                  h3.textContent = '😬 基本正确';
                 } else if (json.correct < 90) {
                   h3.textContent = '🤗 很棒！';
                 } else if (json.correct <= 100) {
-                  h3.textContent = '🎉 太棒了！';
+                  h3.textContent = '🥳 太棒了！';
                 }
                 h3.textContent += ` 得分: ${json.score}`;
               } catch (e) {
@@ -298,9 +279,15 @@
             fullResponse += textChunk;
             if (fullResponse.includes('{')) isJsonPart = true;
             if (!isJsonPart) {
+              noJsonContent += textChunk;
               explanationEl.innerHTML = `
                 <h3>🤔正在验证……</h3>
                 <p>${fullResponse}</p>
+              `;
+            } else {
+              explanationEl.innerHTML = `
+                <h3>🧐正在判分……</h3>
+                <p>${noJsonContent}</p>
               `;
             }
 
@@ -333,7 +320,7 @@
           console.error('提交失败:', error);
         } finally {
           answerInput.value = '';
-          enableActions();
+          enableNextQuestionBtn();
         }
       }
     </script>
