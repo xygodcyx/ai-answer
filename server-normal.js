@@ -1,4 +1,3 @@
-// 后端 server.js
 const OpenAI = require('openai');
 const express = require('express');
 const cors = require('cors');
